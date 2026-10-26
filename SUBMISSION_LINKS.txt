@@ -1,0 +1,28 @@
+==========================================================
+รายงานการส่งงาน Lab 9.6 และ Lab 9.7
+รหัสนักศึกษา: 67310072
+ชื่อ-นามสกุล: นายชัยศักดิ์ ภูเกิด (Chaisak Phukoet)
+==========================================================
+
+[PRODUCTION LINKS]
+1. Production Frontend URL (Vercel):
+   https://bookstore-webapp-nine.vercel.app/
+
+2. Production Backend API URL (Render):
+   https://bookstore-api-em9o.onrender.com
+
+3. GitHub Repository:
+   https://github.com/Chai503/Bookstore-Webapp
+
+4. Production MySQL Database (Aiven Cloud):
+   Host: mysql-23696656-chaisak-503dc1.k.aivencloud.com
+   Port: 27939
+   Database: bookstore_db
+
+==========================================================
+[TEST ACCOUNTS - PASSWORD: 123456]
+- Viewer: usera@test.com
+- Editor: userb@test.com
+- Admin:  userc@test.com
+- Admin:  67310072@go.buu.ac.th
+==========================================================
