@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Create Account</title>
+</head>
+<body style="font-family: Arial, sans-serif; margin: 30px;">
+    <h2>Create Account</h2>
+
+    <!-- Step 1: Register Form -->
+    <form id="regForm" onsubmit="handleRegister(event)" style="max-width: 400px;">
+        <p>Name:<br><input type="text" id="name" required style="width: 260px; padding: 6px; font-size: 14px;"></p>
+        <p>Email:<br><input type="email" id="email" required style="width: 260px; padding: 6px; font-size: 14px;"></p>
+        <p>Password:<br><input type="password" id="password" required style="width: 260px; padding: 6px; font-size: 14px;"></p>
+        <button type="submit" id="btnReg" style="padding: 8px 20px; font-size: 15px; cursor: pointer;">Register</button>
+    </form>
+
+    <!-- Step 2: 6-Digit OTP Verification Form -->
+    <div id="verifyBox" style="display:none; margin-top: 20px; padding: 25px; border: 1px solid #2e7d32; background: #e8f5e9; max-width: 480px; border-radius: 6px;">
+        <h3 style="margin-top: 0; color: #2e7d32;">กรอกรหัสยืนยัน 6 หลัก (Verification Code)</h3>
+        <p>ระบบได้ส่งรหัสยืนยัน 6 หลักไปที่: <b id="displayEmail" style="color: #1b5e20;"></b></p>
+        <p style="font-size: 13px; color: #666;">(โปรดตรวจสอบกล่องข้อความ Inbox หรือโฟลเดอร์ Junk/Spam mail ของคุณ)</p>
+
+        <form id="verifyForm" onsubmit="handleVerifyCode(event)" style="margin-top: 15px;">
+            <p>
+                <b>รหัสยืนยัน 6 หลัก:</b><br>
+                <input type="text" id="otpCode" maxlength="6" placeholder="______" required 
+                       style="width: 220px; font-size: 26px; letter-spacing: 6px; text-align: center; padding: 8px; font-family: monospace; font-weight: bold; border: 2px solid #2e7d32; border-radius: 4px; margin-top: 6px;">
+            </p>
+            <button type="submit" style="padding: 10px 24px; font-size: 15px; background: #2e7d32; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">
+                ยืนยันรหัสเข้าสู่ระบบ
+            </button>
+        </form>
+
+        <div id="warningBox" style="display:none; margin-top: 15px; padding: 12px; background: #fff3cd; border: 1px solid #ffeeba; color: #856404; font-size: 13px; border-radius: 4px;"></div>
+        <p id="verifyErrMsg" style="color: red; font-weight: bold; margin-top: 12px;"></p>
+        <p id="verifySuccessMsg" style="color: green; font-weight: bold; margin-top: 12px; font-size: 16px;"></p>
+    </div>
+
+    <p id="errorMsg" style="color: red; font-weight: bold; margin-top: 15px;"></p>
+
+    <hr style="max-width: 500px; margin-left: 0; margin-top: 25px;">
+    <p>Already have an account? <a href="/login/">Login here</a></p>
+
+    <script>
+        let currentEmail = '';
+
+        async function handleRegister(e) {
+            e.preventDefault();
+            document.getElementById('errorMsg').innerText = '';
+            const btn = document.getElementById('btnReg');
+            btn.disabled = true;
+            btn.innerText = 'Registering...';
+
+            const name = document.getElementById('name').value.trim();
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+            currentEmail = email;
+
+            try {
+                const res = await fetch('/api/register/', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({name, email, password})
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    document.getElementById('regForm').style.display = 'none';
+                    document.getElementById('verifyBox').style.display = 'block';
+                    document.getElementById('displayEmail').innerText = data.email || email;
+
+                    if (!data.email_sent && data.email_warning) {
+                        const wb = document.getElementById('warningBox');
+                        wb.style.display = 'block';
+                        wb.innerHTML = `<b>ข้อความแจ้งเตือน SMTP:</b><br>${data.email_warning}<br><br><b>รหัส 6 หลักสำหรับทดสอบ:</b> <span style="font-size: 20px; font-weight: bold; color: green;">${data.backup_code}</span>`;
+                    }
+                } else {
+                    document.getElementById('errorMsg').innerText = data.error || 'Registration failed';
+                    btn.disabled = false;
+                    btn.innerText = 'Register';
+                }
+            } catch (err) {
+                document.getElementById('errorMsg').innerText = 'Connection error. Please try again.';
+                btn.disabled = false;
+                btn.innerText = 'Register';
+            }
+        }
+
+        async function handleVerifyCode(e) {
+            e.preventDefault();
+            document.getElementById('verifyErrMsg').innerText = '';
+            document.getElementById('verifySuccessMsg').innerText = '';
+            const code = document.getElementById('otpCode').value.trim();
+
+            const res = await fetch('/api/verify/', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({email: currentEmail, code: code})
+            });
+            const data = await res.json();
+            if (res.ok) {
+                document.getElementById('verifySuccessMsg').innerText = data.message + ' กำลังนำคุณเข้าสู่ระบบ...';
+                setTimeout(() => {
+                    window.location.href = '/';
+                }, 1200);
+            } else {
+                document.getElementById('verifyErrMsg').innerText = (data.error || 'Invalid code');
+            }
+        }
+    </script>
+</body>
+</html>

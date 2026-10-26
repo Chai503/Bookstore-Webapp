@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Book Management</title>
+</head>
+<body>
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h2 style="margin: 0;">Book Management</h2>
+        <div id="userHeader">Logged in as: <b id="userName">User</b> (<span id="userEmail"></span>) | Role: <b id="userRole">-</b> | <a href="#" onclick="handleLogout(); return false;">Logout</a></div>
+    </div>
+    <hr>
+
+    <div id="adminFormSection" style="display: none;">
+        <form id="bookForm" onsubmit="handleSaveBook(event)">
+            <input type="hidden" id="editBookId" value="">
+            <p><label for="book_title">Title:</label> <input type="text" id="book_title" required></p>
+            <p><label for="book_author">Author:</label> <input type="text" id="book_author"></p>
+            <p><label for="book_price">Price:</label> <input type="number" id="book_price" step="0.01" value="0.0" required></p>
+            <p><label for="book_stock">Stock:</label> <input type="number" id="book_stock" value="0" required></p>
+            <p><label for="book_category">Category:</label> <input type="text" id="book_category"></p>
+            <button type="submit" id="submitBtn">Save</button>
+            <button type="button" id="cancelBtn" style="display: none;" onclick="cancelEdit()">Cancel</button>
+        </form>
+        <hr>
+    </div>
+
+    <form onsubmit="handleSearch(event)" style="margin-bottom: 15px;">
+        <input type="text" id="searchInput" placeholder="Search...">
+        <select id="sortSelect" onchange="loadBooks()">
+            <option value="">Sort by...</option>
+            <option value="title">Title</option>
+            <option value="author">Author</option>
+            <option value="price">Price</option>
+            <option value="stock">Stock</option>
+            <option value="category">Category</option>
+            <option value="created_at">Created At</option>
+            <option value="updated_at">Updated At</option>
+        </select>
+        <button type="submit">Filter</button>
+    </form>
+
+    <table border="1" cellpadding="5" cellspacing="0">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Title</th>
+                <th>Author</th>
+                <th>Price</th>
+                <th>Stock</th>
+                <th>Category</th>
+                <th>Created At</th>
+                <th>Updated At</th>
+                <th id="actionHeader">Action</th>
+            </tr>
+        </thead>
+        <tbody id="booksTableBody">
+            <tr>
+                <td colspan="9">No items found.</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <script>
+        function getToken() {
+            return localStorage.getItem("token") || "";
+        }
+
+        function isTokenExpired() {
+            const token = getToken();
+            if (!token) return true;
+            try {
+                const parts = token.split('.');
+                if (parts.length !== 3) return true;
+                const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+                const payload = JSON.parse(atob(base64));
+                if (!payload.exp) return false;
+                return (Date.now() / 1000) >= payload.exp;
+            } catch (e) {
+                return true;
+            }
+        }
+
+        let hasAlertedExpired = false;
+        function handleExpiredSession() {
+            if (hasAlertedExpired) return;
+            hasAlertedExpired = true;
+            localStorage.removeItem("token");
+            alert("Token หมดอายุแล้ว กรุณาเข้าสู่ระบบใหม่!");
+            window.location.href = '/login/';
+        }
+
+        function getSafeAuthHeader() {
+            const token = getToken();
+            if (!token) return {};
+            try {
+                return { 'Authorization': 'Bearer ' + encodeURIComponent(token) };
+            } catch (e) {
+                return { 'Authorization': 'Bearer invalid_token' };
+            }
+        }
+
+        let allBooks = [];
+        let currentUserRole = "viewer";
+
+        if (!getToken()) {
+            window.location.href = '/login/';
+        } else if (isTokenExpired()) {
+            handleExpiredSession();
+        } else {
+            initPage();
+        }
+
+        setInterval(() => {
+            if (getToken() && isTokenExpired()) {
+                handleExpiredSession();
+            }
+        }, 1000);
+
+        window.addEventListener('focus', () => {
+            if (!getToken() || isTokenExpired()) {
+                handleExpiredSession();
+            } else {
+                loadProfile();
+            }
+        });
+
+        async function initPage() {
+            await loadProfile();
+            await loadBooks();
+        }
+
+        async function loadProfile() {
+            try {
+                const res = await fetch('http://localhost:4000/api/profile', {
+                    headers: getSafeAuthHeader()
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    currentUserRole = data.role || 'viewer';
+                    document.getElementById('userName').innerText = data.name;
+                    document.getElementById('userEmail').innerText = data.email;
+                    document.getElementById('userRole').innerText = currentUserRole;
+
+                    if (currentUserRole === 'admin' || currentUserRole === 'editor') {
+                        document.getElementById('adminFormSection').style.display = 'block';
+                    } else {
+                        document.getElementById('adminFormSection').style.display = 'none';
+                    }
+                } else {
+                    const err = await res.json().catch(() => ({}));
+                    if (res.status === 401 || res.status === 403) {
+                        if (err.message === 'Token expired' || isTokenExpired()) {
+                            handleExpiredSession();
+                            return;
+                        }
+                    }
+                    currentUserRole = 'invalid';
+                    document.getElementById('adminFormSection').style.display = 'none';
+                    document.getElementById('userHeader').innerHTML = `<span style="color:red; font-weight:bold;">${err.message || 'Token ไม่ถูกต้อง'} (HTTP ${res.status})</span> | <a href="#" onclick="handleLogout(); return false;">Login again</a>`;
+                }
+            } catch (err) {
+                currentUserRole = 'invalid';
+                document.getElementById('adminFormSection').style.display = 'none';
+                document.getElementById('userHeader').innerHTML = `<span style="color:red; font-weight:bold;">Token ไม่ถูกต้อง หรือหมดอายุ</span> | <a href="#" onclick="handleLogout(); return false;">Login again</a>`;
+            }
+        }
+
+        function formatDisplayDate(dateStr) {
+            if (!dateStr) return '';
+            const d = new Date(dateStr);
+            if (isNaN(d.getTime())) return dateStr;
+            const months = ["Jan.", "Feb.", "Mar.", "Apr.", "May", "June", "July", "Aug.", "Sept.", "Oct.", "Nov.", "Dec."];
+            const m = months[d.getMonth()];
+            const day = d.getDate();
+            const y = d.getFullYear();
+            let hours = d.getHours();
+            const ampm = hours >= 12 ? 'p.m.' : 'a.m.';
+            hours = hours % 12;
+            hours = hours ? hours : 12;
+            const minutes = d.getMinutes().toString().padStart(2, '0');
+            return `${m} ${day}, ${y}, ${hours}:${minutes} ${ampm}`;
+        }
+
+        async function loadBooks() {
+            try {
+                const res = await fetch('http://localhost:4000/api/books', {
+                    headers: getSafeAuthHeader()
+                });
+                if (res.ok) {
+                    allBooks = await res.json();
+                    renderBooks();
+                } else {
+                    const err = await res.json().catch(() => ({}));
+                    if (res.status === 401 || res.status === 403) {
+                        if (err.message === 'Token expired' || isTokenExpired()) {
+                            handleExpiredSession();
+                            return;
+                        }
+                    }
+                    allBooks = [];
+                    document.getElementById('booksTableBody').innerHTML = `<tr><td colspan="9" style="color:red; text-align:center; font-weight:bold;">HTTP ${res.status}: ${err.message || 'Unauthorized'} (กรุณาใช้ Token ที่ถูกต้อง)</td></tr>`;
+                }
+            } catch (err) {
+                allBooks = [];
+                document.getElementById('booksTableBody').innerHTML = `<tr><td colspan="9" style="color:red; text-align:center; font-weight:bold;">Token ไม่ถูกต้อง หรือเชื่อมต่อไม่ได้</td></tr>`;
+            }
+        }
+
+        function renderBooks() {
+            const query = document.getElementById('searchInput').value.trim().toLowerCase();
+            const sort = document.getElementById('sortSelect').value;
+
+            let filtered = allBooks.slice();
+
+            if (query) {
+                filtered = filtered.filter(b => 
+                    String(b.id || '').includes(query) ||
+                    (b.title && b.title.toLowerCase().includes(query)) ||
+                    (b.author && b.author.toLowerCase().includes(query)) ||
+                    (b.category && b.category.toLowerCase().includes(query))
+                );
+            }
+
+            if (sort) {
+                filtered.sort((a, b) => {
+                    if (sort === 'id' || sort === 'price' || sort === 'stock') {
+                        return (parseFloat(a[sort]) || 0) - (parseFloat(b[sort]) || 0);
+                    }
+                    return String(a[sort] || '').localeCompare(String(b[sort] || ''));
+                });
+            }
+
+            const tbody = document.getElementById('booksTableBody');
+            if (filtered.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="9">No items found.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(item => `
+                <tr>
+                    <td>${item.id}</td>
+                    <td>${item.title || ''}</td>
+                    <td>${item.author || ''}</td>
+                    <td>${item.price !== undefined ? parseFloat(item.price).toFixed(2) : ''}</td>
+                    <td>${item.stock !== undefined ? item.stock : 0}</td>
+                    <td>${item.category || ''}</td>
+                    <td>${formatDisplayDate(item.created_at)}</td>
+                    <td>${formatDisplayDate(item.updated_at)}</td>
+                    <td>
+                        ${currentUserRole === 'admin' ? `
+                            <a href="#" onclick="handleDelete(${item.id}); return false;">Delete</a>
+                            |
+                            <a href="#" onclick="handleEdit(${item.id}); return false;">Edit</a>
+                        ` : currentUserRole === 'editor' ? `
+                            <a href="#" onclick="handleEdit(${item.id}); return false;">Edit</a>
+                        ` : '-'}
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function handleSearch(e) {
+            e.preventDefault();
+            renderBooks();
+        }
+
+        async function handleSaveBook(e) {
+            e.preventDefault();
+            if (!getToken() || isTokenExpired()) {
+                handleExpiredSession();
+                return;
+            }
+
+            const editId = document.getElementById('editBookId').value;
+            const bookData = {
+                title: document.getElementById('book_title').value.trim(),
+                author: document.getElementById('book_author').value.trim(),
+                price: parseFloat(document.getElementById('book_price').value) || 0,
+                stock: parseInt(document.getElementById('book_stock').value) || 0,
+                category: document.getElementById('book_category').value.trim()
+            };
+
+            const url = editId ? `http://localhost:4000/api/books/${editId}` : 'http://localhost:4000/api/books';
+            const method = editId ? 'PUT' : 'POST';
+
+            try {
+                const res = await fetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...getSafeAuthHeader()
+                    },
+                    body: JSON.stringify(bookData)
+                });
+
+                if (res.ok) {
+                    cancelEdit();
+                    loadBooks();
+                } else {
+                    const err = await res.json().catch(() => ({}));
+                    if (res.status === 401 || res.status === 403) {
+                        if (err.message === 'Token expired' || isTokenExpired()) {
+                            handleExpiredSession();
+                            return;
+                        }
+                        alert(`HTTP ${res.status}: ${err.message || 'Forbidden'}`);
+                        return;
+                    }
+                    alert(`HTTP ${res.status}: ${err.message || 'บันทึกข้อมูลไม่สำเร็จ'}`);
+                }
+            } catch (err) {
+                alert('Token ไม่ถูกต้อง หรือเซิร์ฟเวอร์ปฏิเสธการเข้าถึง ไม่อนุญาตให้บันทึกข้อมูล!');
+            }
+        }
+
+        async function handleEdit(id) {
+            if (!getToken() || isTokenExpired()) {
+                handleExpiredSession();
+                return;
+            }
+
+            try {
+                const res = await fetch(`http://localhost:4000/api/books/${id}`, {
+                    headers: getSafeAuthHeader()
+                });
+
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    if (res.status === 401 || res.status === 403) {
+                        if (err.message === 'Token expired' || isTokenExpired()) {
+                            handleExpiredSession();
+                            return;
+                        }
+                    }
+                    alert(`HTTP ${res.status}: ${err.message || 'Forbidden'}`);
+                    return;
+                }
+
+                const item = await res.json();
+                document.getElementById('editBookId').value = item.id;
+                document.getElementById('book_title').value = item.title || '';
+                document.getElementById('book_author').value = item.author || '';
+                document.getElementById('book_price').value = item.price || 0.0;
+                document.getElementById('book_stock').value = item.stock || 0;
+                document.getElementById('book_category').value = item.category || '';
+
+                document.getElementById('submitBtn').innerText = 'Update';
+                document.getElementById('cancelBtn').style.display = 'inline-block';
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            } catch (err) {
+                alert('Token ไม่ถูกต้อง หรือไม่สามารถยืนยันสิทธิ์กับเซิร์ฟเวอร์ได้ ไม่อนุญาตให้แก้ไขข้อมูล!');
+            }
+        }
+
+        function cancelEdit() {
+            document.getElementById('editBookId').value = '';
+            document.getElementById('book_title').value = '';
+            document.getElementById('book_author').value = '';
+            document.getElementById('book_price').value = '0.0';
+            document.getElementById('book_stock').value = '0';
+            document.getElementById('book_category').value = '';
+
+            document.getElementById('submitBtn').innerText = 'Save';
+            document.getElementById('cancelBtn').style.display = 'none';
+        }
+
+        async function handleDelete(id) {
+            if (!confirm('Delete?')) return;
+            if (!getToken() || isTokenExpired()) {
+                handleExpiredSession();
+                return;
+            }
+
+            try {
+                const res = await fetch(`http://localhost:4000/api/books/${id}`, {
+                    method: 'DELETE',
+                    headers: getSafeAuthHeader()
+                });
+
+                if (res.ok) {
+                    loadBooks();
+                } else {
+                    const err = await res.json().catch(() => ({}));
+                    if (res.status === 401 || res.status === 403) {
+                        if (err.message === 'Token expired' || isTokenExpired()) {
+                            handleExpiredSession();
+                            return;
+                        }
+                        alert(`HTTP ${res.status}: ${err.message || 'Forbidden'}`);
+                        return;
+                    }
+                    alert(`HTTP ${res.status}: ${err.message || 'ลบข้อมูลไม่สำเร็จ'}`);
+                }
+            } catch (err) {
+                alert('Token ไม่ถูกต้อง หรือเซิร์ฟเวอร์ปฏิเสธการเข้าถึง ไม่อนุญาตให้ลบข้อมูล!');
+            }
+        }
+
+        function handleLogout() {
+            localStorage.removeItem("token");
+            window.location.href = '/login/';
+        }
+    </script>
+</body>
+</html>

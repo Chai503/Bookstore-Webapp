@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Book Management System - Lab 9.6 & 9.7</title>
+  <link rel="stylesheet" href="/src/style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div id="app">
+    <!-- Navigation Header -->
+    <header class="app-header">
+      <div class="header-container">
+        <div class="brand">
+          <div class="brand-icon">📚</div>
+          <div>
+            <h1>Book Management System</h1>
+            <span class="subtitle">Cloud Native Architecture (Lab 9.6 & 9.7)</span>
+          </div>
+        </div>
+
+        <div class="api-status-badge">
+          <span class="pulse-dot"></span>
+          <span id="apiHostLabel">Backend: Connecting...</span>
+        </div>
+
+        <div id="authNav" class="auth-nav">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </header>
+
+    <main class="main-content">
+      <!-- Alert Message Box -->
+      <div id="alertBox" class="alert-box" style="display: none;"></div>
+
+      <!-- Login Section -->
+      <section id="loginSection" class="section-card login-card" style="display: none;">
+        <div class="login-header">
+          <h2>เข้าสู่ระบบ (Authentication)</h2>
+          <p>เข้าสู่ระบบเพื่อจัดการข้อมูลหนังสือตามสิทธิ์การใช้งาน (RBAC)</p>
+        </div>
+
+        <form id="loginForm" class="form-grid">
+          <div class="form-group">
+            <label for="loginEmail">อีเมล (Email):</label>
+            <input type="email" id="loginEmail" placeholder="เช่น usera@test.com" required />
+          </div>
+
+          <div class="form-group">
+            <label for="loginPassword">รหัสผ่าน (Password):</label>
+            <input type="password" id="loginPassword" placeholder="รหัสผ่าน" required />
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-block" id="loginSubmitBtn">
+            เข้าสู่ระบบ (Sign In)
+          </button>
+        </form>
+
+        <div class="quick-login-section">
+          <p class="quick-login-title">⚡ บัญชีทดสอบด่วน (Quick Test Accounts - Password: 123456):</p>
+          <div class="quick-login-buttons">
+            <button class="btn btn-badge role-viewer" onclick="quickLogin('usera@test.com')">
+              <strong>User A</strong> (Viewer)
+            </button>
+            <button class="btn btn-badge role-editor" onclick="quickLogin('userb@test.com')">
+              <strong>User B</strong> (Editor)
+            </button>
+            <button class="btn btn-badge role-admin" onclick="quickLogin('userc@test.com')">
+              <strong>User C</strong> (Admin)
+            </button>
+            <button class="btn btn-badge role-manager" onclick="quickLogin('manager@test.com')">
+              <strong>Manager</strong> (Manager)
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Dashboard Section -->
+      <section id="dashboardSection" class="dashboard-section" style="display: none;">
+        <!-- Role Info Banner -->
+        <div class="role-banner" id="roleBanner">
+          <div class="role-icon" id="roleIcon">🛡️</div>
+          <div class="role-details">
+            <h3 id="roleBannerTitle">บทบาทของคุณ: Viewer</h3>
+            <p id="roleBannerDesc">คุณสามารถดูรายการหนังสือได้เท่านั้น ไม่สามารถเพิ่ม แก้ไข หรือลบหนังสือได้</p>
+          </div>
+          <div class="action-buttons-right">
+            <button id="addBookBtn" class="btn btn-success" style="display: none;" onclick="openAddModal()">
+              ➕ เพิ่มหนังสือใหม่
+            </button>
+          </div>
+        </div>
+
+        <!-- Filter and Search Bar -->
+        <div class="controls-bar">
+          <div class="search-box">
+            <input type="text" id="searchInput" placeholder="ค้นหาตามชื่อหนังสือ, ผู้แต่ง, หมวดหมู่..." oninput="handleSearch()" />
+          </div>
+          <div class="sort-box">
+            <label for="sortSelect">จัดเรียง:</label>
+            <select id="sortSelect" onchange="handleSort()">
+              <option value="-id">ล่าสุด (ID มากไปน้อย)</option>
+              <option value="id">เก่าสุด (ID น้อยไปมาก)</option>
+              <option value="title">ชื่อหนังสือ (ก-ฮ / A-Z)</option>
+              <option value="price">ราคา (ต่ำ -> สูง)</option>
+              <option value="-price">ราคา (สูง -> ต่ำ)</option>
+              <option value="stock">จำนวนในคลัง</option>
+            </select>
+          </div>
+          <button class="btn btn-secondary" onclick="loadBooks()">🔄 รีเฟรช</button>
+        </div>
+
+        <!-- Books Table -->
+        <div class="table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th style="width: 60px;">ID</th>
+                <th>ชื่อหนังสือ (Title)</th>
+                <th>ผู้แต่ง (Author)</th>
+                <th>หมวดหมู่ (Category)</th>
+                <th>ราคา (Price)</th>
+                <th>คงเหลือ (Stock)</th>
+                <th>อัปเดตล่าสุด (Updated)</th>
+                <th id="actionsHeader" style="width: 140px;">จัดการ (Actions)</th>
+              </tr>
+            </thead>
+            <tbody id="booksTableBody">
+              <tr>
+                <td colspan="8" class="text-center py-4">กำลังโหลดข้อมูล...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Production API Verification Suite (Section 6) -->
+        <div class="verification-panel">
+          <div class="verification-header">
+            <h3>🧪 ทดสอบ Production API ตามข้อกำหนด Lab 9.7 (Section 6)</h3>
+            <p>ทดสอบส่ง Request จริงไปยัง Cloud Backend เพื่อตรวจสอบ HTTP Status Codes</p>
+          </div>
+
+          <div class="test-buttons-grid">
+            <button class="btn btn-test" onclick="runTestCaseA()">
+              <span class="test-code">Case A</span>
+              <span class="test-title">ไม่ส่ง Token</span>
+              <span class="expected-badge">Expected: 401</span>
+            </button>
+
+            <button class="btn btn-test" onclick="runTestCaseB()">
+              <span class="test-code">Case B</span>
+              <span class="test-title">Viewer สั่ง DELETE</span>
+              <span class="expected-badge">Expected: 403</span>
+            </button>
+
+            <button class="btn btn-test" onclick="runTestCaseC()">
+              <span class="test-code">Case C</span>
+              <span class="test-title">Admin สั่ง DELETE</span>
+              <span class="expected-badge">Expected: 204</span>
+            </button>
+          </div>
+
+          <div id="testResultConsole" class="terminal-box" style="display: none;">
+            <div class="terminal-bar">
+              <span class="terminal-dot red"></span>
+              <span class="terminal-dot yellow"></span>
+              <span class="terminal-dot green"></span>
+              <span class="terminal-title">API Response Inspector</span>
+            </div>
+            <pre id="testResultContent"></pre>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Modal for Add/Edit Book -->
+    <div id="bookModal" class="modal-backdrop" style="display: none;">
+      <div class="modal-dialog">
+        <div class="modal-header">
+          <h3 id="modalTitle">เพิ่มหนังสือใหม่</h3>
+          <button class="modal-close" onclick="closeModal()">&times;</button>
+        </div>
+        <form id="bookForm" onsubmit="handleSaveBook(event)">
+          <input type="hidden" id="modalBookId" value="" />
+          <div class="form-group">
+            <label for="modalBookTitle">ชื่อหนังสือ *</label>
+            <input type="text" id="modalBookTitle" required />
+          </div>
+          <div class="form-group">
+            <label for="modalBookAuthor">ผู้แต่ง</label>
+            <input type="text" id="modalBookAuthor" />
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="modalBookPrice">ราคา (บาท) *</label>
+              <input type="number" id="modalBookPrice" step="0.01" min="0" required />
+            </div>
+            <div class="form-group">
+              <label for="modalBookStock">จำนวนคงเหลือ *</label>
+              <input type="number" id="modalBookStock" min="0" required />
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="modalBookCategory">หมวดหมู่</label>
+            <input type="text" id="modalBookCategory" placeholder="เช่น Programming, IoT, Data Science" />
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="closeModal()">ยกเลิก</button>
+            <button type="submit" class="btn btn-primary" id="modalSaveBtn">บันทึกข้อมูล</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <p>Book Management System • Developed for Lab 9.6 & 9.7 • Powered by Django REST Framework & Vite SPA</p>
+    </footer>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

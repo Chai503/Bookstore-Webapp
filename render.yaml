@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: book-management-backend
+    runtime: python
+    buildCommand: bash build.sh
+    startCommand: gunicorn Book_Management.wsgi:application --bind 0.0.0.0:$PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "False"
+      - key: ALLOWED_HOSTS
+        value: "*"
+      - key: CORS_ALLOW_ALL
+        value: "True"
+      - key: JWT_SECRET
+        value: my_bookstore_secret_jwt_key_32_bytes_security!
+      - key: DB_ENGINE
+        value: django.db.backends.mysql
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_NAME
+        sync: false
+      - key: DB_SSL_REQUIRED
+        value: "True"
