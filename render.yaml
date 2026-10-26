@@ -1,33 +1,21 @@
 services:
   - type: web
-    name: book-management-backend
-    runtime: python
-    buildCommand: bash build.sh
-    startCommand: gunicorn Book_Management.wsgi:application --bind 0.0.0.0:$PORT
+    name: bookstore-api
+    runtime: node
+    buildCommand: npm install
+    startCommand: npm start
     envVars:
-      - key: PYTHON_VERSION
-        value: 3.11.9
-      - key: SECRET_KEY
-        generateValue: true
-      - key: DEBUG
-        value: "False"
-      - key: ALLOWED_HOSTS
-        value: "*"
-      - key: CORS_ALLOW_ALL
-        value: "True"
+      - key: DB_HOST
+        value: mysql-23696656-chaisak-503dc1.k.aivencloud.com
+      - key: DB_PORT
+        value: "27939"
+      - key: DB_USER
+        value: avnadmin
+      - key: DB_NAME
+        value: bookstore_db
+      - key: DB_SSL_REQUIRED
+        value: "true"
       - key: JWT_SECRET
         value: my_bookstore_secret_jwt_key_32_bytes_security!
-      - key: DB_ENGINE
-        value: django.db.backends.mysql
-      - key: DB_HOST
-        sync: false
-      - key: DB_PORT
-        sync: false
-      - key: DB_USER
-        sync: false
-      - key: DB_PASSWORD
-        sync: false
-      - key: DB_NAME
-        sync: false
-      - key: DB_SSL_REQUIRED
-        value: "True"
+      - key: FRONTEND_URL
+        value: "*"
